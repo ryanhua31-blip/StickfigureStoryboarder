@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Stickfigure Storyboarder</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Shot Planning Playground</p>
+          <h1>Stickfigure Storyboarder</h1>
+          <p class="hero-copy">
+            Sketch rough shots, drop in stick-figure actors, and block out a
+            comic-strip version of your movie.
+          </p>
+        </div>
+        <div class="hero-badge">
+          <span>Draw</span>
+          <span>Stage</span>
+          <span>Sequence</span>
+        </div>
+      </header>
+
+      <main class="app-grid">
+        <aside class="control-panel">
+          <section class="panel-card">
+            <div class="section-heading">
+              <h2>Shot Tools</h2>
+              <p>Pick a tool and start blocking the scene.</p>
+            </div>
+            <div class="tool-cluster">
+              <button class="tool-button active" data-tool="pen">Ink</button>
+              <button class="tool-button" data-tool="eraser">Erase</button>
+              <button class="tool-button" data-tool="figure">
+                Add Stick Figure
+              </button>
+              <button class="tool-button" data-tool="drag">Move Figure</button>
+            </div>
+            <label class="field">
+              <span>Brush Size</span>
+              <input id="brushSize" type="range" min="1" max="16" value="4" />
+            </label>
+            <label class="field">
+              <span>Ink Color</span>
+              <input id="brushColor" type="color" value="#2b190e" />
+            </label>
+          </section>
+
+          <section class="panel-card">
+            <div class="section-heading">
+              <h2>Scene Backdrop</h2>
+              <p>Give the frame a quick mood board.</p>
+            </div>
+            <label class="field">
+              <span>Backdrop Color</span>
+              <input id="backgroundColor" type="color" value="#f6e6b3" />
+            </label>
+            <label class="field">
+              <span>Backdrop Image</span>
+              <input id="backgroundUpload" type="file" accept="image/*" />
+            </label>
+            <button id="clearBackground" class="secondary-button" type="button">
+              Clear Backdrop Image
+            </button>
+          </section>
+
+          <section class="panel-card">
+            <div class="section-heading">
+              <h2>Shot Notes</h2>
+              <p>Name the beat and jot down the action.</p>
+            </div>
+            <label class="field">
+              <span>Shot Title</span>
+              <input
+                id="panelTitle"
+                type="text"
+                maxlength="50"
+                placeholder="Wide shot: hero enters alley"
+              />
+            </label>
+            <label class="field">
+              <span>Action / Direction</span>
+              <textarea
+                id="panelNote"
+                rows="4"
+                maxlength="180"
+                placeholder="Character crosses frame left to right. Camera stays low."
+              ></textarea>
+            </label>
+            <label class="field">
+              <span>Beat Length (seconds)</span>
+              <input id="panelDuration" type="number" min="1" max="30" value="3" />
+            </label>
+          </section>
+
+          <section class="panel-card">
+            <div class="section-heading">
+              <h2>Figure Controls</h2>
+              <p>Adjust the selected performer.</p>
+            </div>
+            <label class="field">
+              <span>Pose</span>
+              <select id="figurePose">
+                <option value="idle">Idle</option>
+                <option value="walk">Walk</option>
+                <option value="point">Point</option>
+                <option value="celebrate">Celebrate</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Scale</span>
+              <input id="figureScale" type="range" min="50" max="170" value="100" />
+            </label>
+            <div class="tool-cluster compact">
+              <button id="flipFigure" class="secondary-button" type="button">
+                Flip
+              </button>
+              <button id="duplicateFigure" class="secondary-button" type="button">
+                Copy Figure
+              </button>
+              <button id="deleteFigure" class="danger-button" type="button">
+                Delete Figure
+              </button>
+            </div>
+          </section>
+
+          <section class="panel-card">
+            <div class="section-heading">
+              <h2>Storyboard Flow</h2>
+              <p>Build the strip and track movement between beats.</p>
+            </div>
+            <label class="toggle">
+              <input id="onionSkinToggle" type="checkbox" checked />
+              <span>Show previous panel ghost for movement tracking</span>
+            </label>
+            <div class="tool-cluster compact">
+              <button id="addPanel" class="secondary-button" type="button">
+                New Blank Panel
+              </button>
+              <button id="duplicatePanel" class="secondary-button" type="button">
+                Duplicate Panel
+              </button>
+              <button id="deletePanel" class="danger-button" type="button">
+                Delete Panel
+              </button>
+            </div>
+            <div class="tool-cluster compact">
+              <button id="clearDrawing" class="secondary-button" type="button">
+                Clear Drawing
+              </button>
+              <button id="exportBoard" class="primary-button" type="button">
+                Export Strip
+              </button>
+            </div>
+          </section>
+        </aside>
+
+        <section class="stage-panel">
+          <div class="stage-topline">
+            <div>
+              <p class="eyebrow">Current Shot</p>
+              <h2 id="shotHeading">Panel 1</h2>
+            </div>
+            <div class="stage-hints">
+              <span>Ink for sketching</span>
+              <span>Add Stick Figure to block actors</span>
+              <span>Move Figure to puppet motion</span>
+            </div>
+          </div>
+
+          <div class="frame-wrap">
+            <div id="frameSurface" class="frame-surface">
+              <div id="backgroundLayer" class="background-layer"></div>
+              <canvas id="onionCanvas" width="1280" height="720"></canvas>
+              <canvas id="stageCanvas" width="1280" height="720"></canvas>
+            </div>
+          </div>
+
+          <div class="stage-caption">
+            <div>
+              <span class="caption-label">Frame Vibe</span>
+              <p>Loose comic-strip energy with enough structure to plan a scene.</p>
+            </div>
+            <div>
+              <span class="caption-label">Tip</span>
+              <p>Duplicate a panel, then nudge your figure to map motion across shots.</p>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <section class="timeline-shell">
+        <div class="timeline-heading">
+          <div>
+            <p class="eyebrow">Storyboard Strip</p>
+            <h2>Timeline</h2>
+          </div>
+          <p>Click any panel to jump around the sequence.</p>
+        </div>
+        <div id="timeline" class="timeline"></div>
+      </section>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>
