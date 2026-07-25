@@ -173,39 +173,58 @@ function getPoseAngles(pose) {
   switch (pose) {
     case "walk":
       return {
-        leftArm: -45,
-        rightArm: 45,
-        leftLeg: 35,
-        rightLeg: -35,
+        leftUpperArm: -38,
+        rightUpperArm: 34,
+        leftLowerArm: -18,
+        rightLowerArm: 18,
+        leftUpperLeg: 26,
+        rightUpperLeg: -24,
+        leftLowerLeg: 10,
+        rightLowerLeg: -8,
       };
     case "point":
       return {
-        leftArm: -82,
-        rightArm: 28,
-        leftLeg: 8,
-        rightLeg: -8,
+        leftUpperArm: -88,
+        rightUpperArm: 28,
+        leftLowerArm: -88,
+        rightLowerArm: 20,
+        leftUpperLeg: 10,
+        rightUpperLeg: -10,
+        leftLowerLeg: 4,
+        rightLowerLeg: -4,
       };
     case "celebrate":
       return {
-        leftArm: -128,
-        rightArm: 128,
-        leftLeg: 20,
-        rightLeg: -20,
+        leftUpperArm: -138,
+        rightUpperArm: 138,
+        leftLowerArm: -148,
+        rightLowerArm: 148,
+        leftUpperLeg: 16,
+        rightUpperLeg: -16,
+        leftLowerLeg: 6,
+        rightLowerLeg: -6,
       };
     case "idle":
     default:
       return {
-        leftArm: -18,
-        rightArm: 18,
-        leftLeg: 12,
-        rightLeg: -12,
+        leftUpperArm: -20,
+        rightUpperArm: 20,
+        leftLowerArm: -8,
+        rightLowerArm: 8,
+        leftUpperLeg: 12,
+        rightUpperLeg: -12,
+        leftLowerLeg: 4,
+        rightLowerLeg: -4,
       };
   }
 }
 
-function drawLimb(ctx, length, angleDegrees) {
+function drawLimb(ctx, startX, startY, length, angleDegrees) {
   const angle = (angleDegrees * Math.PI) / 180;
-  ctx.lineTo(Math.sin(angle) * length, Math.cos(angle) * length);
+  return {
+    x: startX + Math.sin(angle) * length,
+    y: startY + Math.cos(angle) * length,
+  };
 }
 
 function drawStickFigure(ctx, figure, options = {}) {
@@ -226,30 +245,126 @@ function drawStickFigure(ctx, figure, options = {}) {
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   ctx.strokeStyle = stroke;
-  ctx.lineWidth = 6;
+  ctx.lineWidth = 4.5;
 
   if (emphasize) {
     ctx.save();
     ctx.strokeStyle = "rgba(215, 96, 43, 0.34)";
-    ctx.lineWidth = 16;
+    ctx.lineWidth = 14;
     ctx.beginPath();
-    ctx.ellipse(0, -78, 40, 82, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, -78, 42, 80, 0, 0, Math.PI * 2);
     ctx.stroke();
     ctx.restore();
   }
 
+  const anatomy = {
+    headRadius: 16,
+    headY: -112,
+    neckY: -96,
+    shoulderY: -80,
+    shoulderSpread: 12,
+    hipY: -36,
+    hipSpread: 9,
+    upperArm: 24,
+    lowerArm: 22,
+    upperLeg: 28,
+    lowerLeg: 30,
+    footLength: 10,
+  };
+
+  const leftShoulder = { x: -anatomy.shoulderSpread, y: anatomy.shoulderY };
+  const rightShoulder = { x: anatomy.shoulderSpread, y: anatomy.shoulderY };
+  const leftHip = { x: -anatomy.hipSpread, y: anatomy.hipY };
+  const rightHip = { x: anatomy.hipSpread, y: anatomy.hipY };
+
+  const leftElbow = drawLimb(
+    ctx,
+    leftShoulder.x,
+    leftShoulder.y,
+    anatomy.upperArm,
+    pose.leftUpperArm,
+  );
+  const rightElbow = drawLimb(
+    ctx,
+    rightShoulder.x,
+    rightShoulder.y,
+    anatomy.upperArm,
+    pose.rightUpperArm,
+  );
+  const leftHand = drawLimb(
+    ctx,
+    leftElbow.x,
+    leftElbow.y,
+    anatomy.lowerArm,
+    pose.leftLowerArm,
+  );
+  const rightHand = drawLimb(
+    ctx,
+    rightElbow.x,
+    rightElbow.y,
+    anatomy.lowerArm,
+    pose.rightLowerArm,
+  );
+
+  const leftKnee = drawLimb(
+    ctx,
+    leftHip.x,
+    leftHip.y,
+    anatomy.upperLeg,
+    pose.leftUpperLeg,
+  );
+  const rightKnee = drawLimb(
+    ctx,
+    rightHip.x,
+    rightHip.y,
+    anatomy.upperLeg,
+    pose.rightUpperLeg,
+  );
+  const leftFoot = drawLimb(
+    ctx,
+    leftKnee.x,
+    leftKnee.y,
+    anatomy.lowerLeg,
+    pose.leftLowerLeg,
+  );
+  const rightFoot = drawLimb(
+    ctx,
+    rightKnee.x,
+    rightKnee.y,
+    anatomy.lowerLeg,
+    pose.rightLowerLeg,
+  );
+
   ctx.beginPath();
-  ctx.arc(0, -116, 18, 0, Math.PI * 2);
-  ctx.moveTo(0, -98);
-  ctx.lineTo(0, -40);
-  ctx.moveTo(0, -84);
-  drawLimb(ctx, 36, pose.leftArm);
-  ctx.moveTo(0, -84);
-  drawLimb(ctx, 36, pose.rightArm);
-  ctx.moveTo(0, -40);
-  drawLimb(ctx, 48, pose.leftLeg);
-  ctx.moveTo(0, -40);
-  drawLimb(ctx, 48, pose.rightLeg);
+  ctx.arc(0, anatomy.headY, anatomy.headRadius, 0, Math.PI * 2);
+  ctx.moveTo(0, anatomy.neckY);
+  ctx.lineTo(0, anatomy.shoulderY - 6);
+  ctx.moveTo(leftShoulder.x, leftShoulder.y);
+  ctx.lineTo(rightShoulder.x, rightShoulder.y);
+  ctx.moveTo(0, anatomy.shoulderY - 2);
+  ctx.lineTo(0, anatomy.hipY - 2);
+  ctx.moveTo(leftHip.x, leftHip.y);
+  ctx.lineTo(rightHip.x, rightHip.y);
+
+  ctx.moveTo(leftShoulder.x, leftShoulder.y);
+  ctx.lineTo(leftElbow.x, leftElbow.y);
+  ctx.lineTo(leftHand.x, leftHand.y);
+  ctx.moveTo(rightShoulder.x, rightShoulder.y);
+  ctx.lineTo(rightElbow.x, rightElbow.y);
+  ctx.lineTo(rightHand.x, rightHand.y);
+
+  ctx.moveTo(leftHip.x, leftHip.y);
+  ctx.lineTo(leftKnee.x, leftKnee.y);
+  ctx.lineTo(leftFoot.x, leftFoot.y);
+  ctx.moveTo(leftFoot.x, leftFoot.y);
+  ctx.lineTo(leftFoot.x - anatomy.footLength, leftFoot.y);
+
+  ctx.moveTo(rightHip.x, rightHip.y);
+  ctx.lineTo(rightKnee.x, rightKnee.y);
+  ctx.lineTo(rightFoot.x, rightFoot.y);
+  ctx.moveTo(rightFoot.x, rightFoot.y);
+  ctx.lineTo(rightFoot.x + anatomy.footLength, rightFoot.y);
+
   ctx.stroke();
   ctx.restore();
 }
@@ -257,8 +372,8 @@ function drawStickFigure(ctx, figure, options = {}) {
 function findFigureAtPoint(panel, point) {
   for (let i = panel.figures.length - 1; i >= 0; i -= 1) {
     const figure = panel.figures[i];
-    const width = 42 * figure.scale;
-    const height = 140 * figure.scale;
+    const width = 52 * figure.scale;
+    const height = 152 * figure.scale;
     if (
       point.x >= figure.x - width &&
       point.x <= figure.x + width &&
