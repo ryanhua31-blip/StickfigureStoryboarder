@@ -7,6 +7,9 @@
   --accent-soft: #f1a564;
   --shadow: rgba(54, 32, 18, 0.18);
   --line: rgba(43, 25, 14, 0.14);
+  --font-ui: "Verdana", "Geneva", sans-serif;
+  --font-heading: "Georgia", "Palatino Linotype", "Times New Roman", serif;
+  --font-title: "Marker Felt", "Bradley Hand", "Trebuchet MS", cursive;
 }
 
 * {
@@ -17,7 +20,7 @@ body {
   margin: 0;
   min-height: 100vh;
   color: var(--ink);
-  font-family: "Trebuchet MS", "Avenir Next", "Gill Sans", sans-serif;
+  font-family: var(--font-ui);
   background:
     radial-gradient(circle at top left, rgba(255, 247, 222, 0.9), transparent 28%),
     radial-gradient(circle at right 20%, rgba(215, 96, 43, 0.16), transparent 20%),
@@ -63,11 +66,12 @@ select {
 .section-heading h2,
 .stage-topline h2 {
   margin: 0;
-  font-family: "Marker Felt", "Bradley Hand", "Trebuchet MS", cursive;
+  font-family: var(--font-heading);
   letter-spacing: 0.03em;
 }
 
 .hero h1 {
+  font-family: var(--font-title);
   font-size: clamp(2.2rem, 4vw, 4.2rem);
 }
 
@@ -390,7 +394,7 @@ select {
 }
 
 .timeline-meta strong {
-  font-family: "Marker Felt", "Bradley Hand", "Trebuchet MS", cursive;
+  font-family: var(--font-heading);
   font-size: 1.05rem;
 }
 
