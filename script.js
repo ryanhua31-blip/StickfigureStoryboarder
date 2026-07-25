@@ -8,6 +8,7 @@ const onionCtx = onionCanvas.getContext("2d");
 const backgroundLayer = document.getElementById("backgroundLayer");
 const timelineEl = document.getElementById("timeline");
 const shotHeading = document.getElementById("shotHeading");
+const exportStatus = document.getElementById("exportStatus");
 
 const panelTitleInput = document.getElementById("panelTitle");
 const panelNoteInput = document.getElementById("panelNote");
@@ -99,6 +100,17 @@ function pointFromEvent(event) {
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
+}
+
+function slugify(value, fallback = "storyboard") {
+  return (value || fallback)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || fallback;
+}
+
+function setExportStatus(message) {
+  exportStatus.textContent = message;
 }
 
 function setTool(tool) {
@@ -335,6 +347,56 @@ function renderStage() {
   updateInputsFromPanel();
 }
 
+async function loadPanelImages(panels) {
+  return Promise.all(
+    panels.map(
+      (panel) =>
+        new Promise((resolve) => {
+          if (!panel.backgroundImage) {
+            resolve(null);
+            return;
+          }
+
+          const image = new Image();
+          image.onload = () => resolve(image);
+          image.onerror = () => resolve(null);
+          image.src = panel.backgroundImage;
+        }),
+    ),
+  );
+}
+
+function drawPanelFrame(ctx, panel, width, height, backgroundImage = null) {
+  ctx.fillStyle = panel.backgroundColor;
+  ctx.fillRect(0, 0, width, height);
+
+  if (backgroundImage) {
+    ctx.drawImage(backgroundImage, 0, 0, width, height);
+  }
+
+  ctx.save();
+  ctx.scale(width / CANVAS_WIDTH, height / CANVAS_HEIGHT);
+  panel.lines.forEach((stroke) => drawStroke(ctx, stroke, 1));
+  panel.figures.forEach((figure) => drawStickFigure(ctx, figure, { alpha: 1 }));
+  ctx.restore();
+}
+
+function downloadDataUrl(filename, dataUrl) {
+  const link = document.createElement("a");
+  link.href = dataUrl;
+  link.download = filename;
+  link.click();
+}
+
+function downloadBlob(filename, blob) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 function buildThumbCanvas(panel, canvas) {
   const ctx = canvas.getContext("2d");
   canvas.width = 320;
@@ -555,6 +617,23 @@ function copySelectedFigure() {
   renderStage();
 }
 
+async function exportCurrentPanel() {
+  const panel = getActivePanel();
+  if (!panel) return;
+
+  const [backgroundImage] = await loadPanelImages([panel]);
+  const exportCanvas = document.createElement("canvas");
+  exportCanvas.width = CANVAS_WIDTH;
+  exportCanvas.height = CANVAS_HEIGHT;
+  const ctx = exportCanvas.getContext("2d");
+
+  drawPanelFrame(ctx, panel, CANVAS_WIDTH, CANVAS_HEIGHT, backgroundImage);
+
+  const filename = `${slugify(panel.title, "storyboard-shot")}.png`;
+  downloadDataUrl(filename, exportCanvas.toDataURL("image/png"));
+  setExportStatus(`Downloaded ${filename}. Share it like a single storyboard shot.`);
+}
+
 async function exportBoard() {
   const margin = 42;
   const columns = 2;
@@ -569,21 +648,7 @@ async function exportBoard() {
   ctx.fillStyle = "#f6e7bb";
   ctx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
 
-  const imageCache = await Promise.all(
-    state.panels.map(
-      (panel) =>
-        new Promise((resolve) => {
-          if (!panel.backgroundImage) {
-            resolve(null);
-            return;
-          }
-          const image = new Image();
-          image.onload = () => resolve(image);
-          image.onerror = () => resolve(null);
-          image.src = panel.backgroundImage;
-        }),
-    ),
-  );
+  const imageCache = await loadPanelImages(state.panels);
 
   state.panels.forEach((panel, index) => {
     const column = index % columns;
@@ -607,23 +672,15 @@ async function exportBoard() {
     ctx.font = 'bold 34px "Trebuchet MS", sans-serif';
     ctx.fillText(`Panel ${index + 1}: ${panel.title || "Untitled Shot"}`, x + 26, y + 48);
 
-    ctx.fillStyle = panel.backgroundColor;
-    ctx.fillRect(frameX, frameY, frameWidth, frameHeight);
     const bgImage = imageCache[index];
-    if (bgImage) {
-      ctx.drawImage(bgImage, frameX, frameY, frameWidth, frameHeight);
-    }
+    ctx.save();
+    ctx.translate(frameX, frameY);
+    drawPanelFrame(ctx, panel, frameWidth, frameHeight, bgImage);
+    ctx.restore();
 
     ctx.strokeStyle = "#2b190e";
     ctx.lineWidth = 8;
     ctx.strokeRect(frameX, frameY, frameWidth, frameHeight);
-
-    ctx.save();
-    ctx.translate(frameX, frameY);
-    ctx.scale(frameWidth / CANVAS_WIDTH, frameHeight / CANVAS_HEIGHT);
-    panel.lines.forEach((stroke) => drawStroke(ctx, stroke, 1));
-    panel.figures.forEach((figure) => drawStickFigure(ctx, figure, { alpha: 1 }));
-    ctx.restore();
 
     ctx.font = '24px "Trebuchet MS", sans-serif';
     ctx.fillStyle = "#40251b";
@@ -640,10 +697,25 @@ async function exportBoard() {
     );
   });
 
-  const link = document.createElement("a");
-  link.href = exportCanvas.toDataURL("image/png");
-  link.download = "storyboard-strip.png";
-  link.click();
+  const filename = "storyboard-strip.png";
+  downloadDataUrl(filename, exportCanvas.toDataURL("image/png"));
+  setExportStatus(`Downloaded ${filename}. That one is ready to send as a full storyboard sheet.`);
+}
+
+function exportProjectFile() {
+  const payload = {
+    app: "Stickfigure Storyboarder",
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    activePanelId: state.activePanelId,
+    panels: cloneData(state.panels),
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {
+    type: "application/json",
+  });
+  const filename = "stickfigure-storyboarder-project.json";
+  downloadBlob(filename, blob);
+  setExportStatus(`Downloaded ${filename}. Share it as the editable project backup.`);
 }
 
 function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
@@ -713,7 +785,9 @@ function wireControls() {
   document.getElementById("duplicatePanel").addEventListener("click", () => addPanel("duplicate"));
   document.getElementById("deletePanel").addEventListener("click", deleteActivePanel);
   document.getElementById("clearDrawing").addEventListener("click", clearDrawing);
+  document.getElementById("exportPanel").addEventListener("click", exportCurrentPanel);
   document.getElementById("exportBoard").addEventListener("click", exportBoard);
+  document.getElementById("exportProject").addEventListener("click", exportProjectFile);
 
   figurePoseInput.addEventListener("input", () => {
     updateSelectedFigure({ pose: figurePoseInput.value });

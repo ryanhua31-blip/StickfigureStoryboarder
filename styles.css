@@ -163,6 +163,10 @@ select {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.export-actions {
+  margin-top: 4px;
+}
+
 .tool-button,
 .secondary-button,
 .primary-button,
@@ -257,6 +261,26 @@ select {
   gap: 10px;
   align-items: center;
   margin-bottom: 14px;
+}
+
+.export-note,
+.export-status {
+  margin: 12px 0 0;
+  line-height: 1.5;
+}
+
+.export-note {
+  font-size: 0.92rem;
+  opacity: 0.72;
+}
+
+.export-status {
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1.5px solid rgba(35, 20, 12, 0.12);
+  background: rgba(255, 253, 247, 0.78);
+  font-size: 0.9rem;
+  font-weight: 500;
 }
 
 .stage-panel {

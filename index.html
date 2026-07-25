@@ -151,10 +151,30 @@
               <button id="clearDrawing" class="secondary-button" type="button">
                 Clear Drawing
               </button>
+            </div>
+          </section>
+
+          <section class="panel-card">
+            <div class="section-heading">
+              <h2>Share & Export</h2>
+              <p>Download media you can send to other people.</p>
+            </div>
+            <div class="tool-cluster compact export-actions">
+              <button id="exportPanel" class="secondary-button" type="button">
+                Shot PNG
+              </button>
               <button id="exportBoard" class="primary-button" type="button">
-                Export Strip
+                Strip PNG
+              </button>
+              <button id="exportProject" class="secondary-button" type="button">
+                Project File
               </button>
             </div>
+            <p class="export-note">
+              Shot PNG grabs the current frame, Strip PNG makes a full storyboard sheet,
+              and Project File saves everything so you can reopen or share the whole setup.
+            </p>
+            <p id="exportStatus" class="export-status">Nothing exported yet.</p>
           </section>
         </aside>
 
