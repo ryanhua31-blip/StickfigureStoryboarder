@@ -163,6 +163,10 @@ select {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.panel-card .tool-cluster + .tool-cluster {
+  margin-top: 10px;
+}
+
 .export-actions {
   margin-top: 4px;
 }

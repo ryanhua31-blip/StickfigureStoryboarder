@@ -129,6 +129,39 @@
 
           <section class="panel-card">
             <div class="section-heading">
+              <h2>Motion Studio</h2>
+              <p>Puppeteer actors with your mouse, record movement, and play it back.</p>
+            </div>
+            <div class="tool-cluster compact">
+              <button id="recordMotion" class="primary-button" type="button">
+                Record Move
+              </button>
+              <button id="stopMotion" class="secondary-button" type="button">
+                Stop
+              </button>
+              <button id="playScene" class="secondary-button" type="button">
+                Play Scene
+              </button>
+            </div>
+            <div class="tool-cluster compact">
+              <button id="playStrip" class="secondary-button" type="button">
+                Play Strip
+              </button>
+              <button id="movePanelLeft" class="secondary-button" type="button">
+                Scene Left
+              </button>
+              <button id="movePanelRight" class="secondary-button" type="button">
+                Scene Right
+              </button>
+            </div>
+            <p class="export-note">
+              Pick a figure, hit Record Move, drag it around the frame, then play the shot or the full strip.
+            </p>
+            <p id="motionStatus" class="export-status">No motion recording running.</p>
+          </section>
+
+          <section class="panel-card">
+            <div class="section-heading">
               <h2>Storyboard Flow</h2>
               <p>Build the strip and track movement between beats.</p>
             </div>
@@ -218,7 +251,7 @@
             <p class="eyebrow">Storyboard Strip</p>
             <h2>Timeline</h2>
           </div>
-          <p>Click any panel to jump around the sequence.</p>
+          <p>Click any panel to jump around the sequence or reorder scenes from Motion Studio.</p>
         </div>
         <div id="timeline" class="timeline"></div>
       </section>

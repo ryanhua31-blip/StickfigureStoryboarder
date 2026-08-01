@@ -9,6 +9,7 @@ const backgroundLayer = document.getElementById("backgroundLayer");
 const timelineEl = document.getElementById("timeline");
 const shotHeading = document.getElementById("shotHeading");
 const exportStatus = document.getElementById("exportStatus");
+const motionStatus = document.getElementById("motionStatus");
 
 const panelTitleInput = document.getElementById("panelTitle");
 const panelNoteInput = document.getElementById("panelNote");
@@ -33,6 +34,8 @@ const state = {
   showOnionSkin: onionSkinToggle.checked,
   drawingStroke: null,
   dragInfo: null,
+  recording: null,
+  playback: null,
 };
 
 function uid(prefix) {
@@ -87,6 +90,7 @@ function createFigure(x, y) {
     pose: "idle",
     flipped: false,
     color: state.brushColor,
+    motionTrack: null,
   };
 }
 
@@ -113,6 +117,18 @@ function setExportStatus(message) {
   exportStatus.textContent = message;
 }
 
+function setMotionStatus(message) {
+  motionStatus.textContent = message;
+}
+
+function getPanelDurationMs(panel) {
+  return clamp((Number(panel.duration) || 1) * 1000, 1000, 30000);
+}
+
+function getRecordedActorCount(panel) {
+  return panel.figures.filter((figure) => figure.motionTrack?.keyframes?.length > 1).length;
+}
+
 function setTool(tool) {
   state.activeTool = tool;
   toolButtons.forEach((button) => {
@@ -135,6 +151,15 @@ function updateInputsFromPanel() {
   const figure = getSelectedFigure();
   figurePoseInput.value = figure?.pose || "idle";
   figureScaleInput.value = String(Math.round((figure?.scale || 1) * 100));
+
+  if (!state.recording && !state.playback) {
+    const recordedActors = getRecordedActorCount(panel);
+    const actorLabel = panel.figures.length === 1 ? "actor" : "actors";
+    const motionLabel = recordedActors === 1 ? "recorded path" : "recorded paths";
+    setMotionStatus(
+      `${panel.figures.length} ${actorLabel} in this scene, ${recordedActors} ${motionLabel}.`,
+    );
+  }
 }
 
 function syncBackground() {
@@ -419,8 +444,47 @@ function drawMovementGuide(ctx, panel) {
   ctx.restore();
 }
 
+function getFigurePositionAtTime(figure, timeMs) {
+  const keyframes = figure.motionTrack?.keyframes;
+  if (!keyframes || keyframes.length === 0) {
+    return { x: figure.x, y: figure.y };
+  }
+
+  if (timeMs <= keyframes[0].t) {
+    return { x: keyframes[0].x, y: keyframes[0].y };
+  }
+
+  for (let i = 1; i < keyframes.length; i += 1) {
+    const previous = keyframes[i - 1];
+    const next = keyframes[i];
+    if (timeMs <= next.t) {
+      const span = Math.max(next.t - previous.t, 1);
+      const mix = (timeMs - previous.t) / span;
+      return {
+        x: previous.x + (next.x - previous.x) * mix,
+        y: previous.y + (next.y - previous.y) * mix,
+      };
+    }
+  }
+
+  const last = keyframes[keyframes.length - 1];
+  return { x: last.x, y: last.y };
+}
+
+function getPlaybackRenderTime(panel) {
+  if (!state.playback || state.playback.currentPanelId !== panel.id) {
+    return null;
+  }
+  return state.playback.currentTimeMs;
+}
+
 function renderPanelScene(ctx, panel, options = {}) {
-  const { alpha = 1, includeGuides = false, monochrome = false } = options;
+  const {
+    alpha = 1,
+    includeGuides = false,
+    monochrome = false,
+    playbackTimeMs = null,
+  } = options;
 
   ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
   panel.lines.forEach((stroke) => drawStroke(ctx, stroke, alpha));
@@ -430,11 +494,21 @@ function renderPanelScene(ctx, panel, options = {}) {
   }
 
   panel.figures.forEach((figure) =>
-    drawStickFigure(ctx, figure, {
+    drawStickFigure(
+      ctx,
+      playbackTimeMs == null
+        ? figure
+        : {
+            ...figure,
+            ...getFigurePositionAtTime(figure, playbackTimeMs),
+          },
+      {
       alpha,
-      emphasize: figure.id === state.selectedFigureId && !monochrome,
+      emphasize:
+        figure.id === state.selectedFigureId && !monochrome && !state.playback,
       monochrome,
-    }),
+      },
+    ),
   );
 }
 
@@ -457,7 +531,10 @@ function renderStage() {
 
   syncBackground();
   renderOnionSkin();
-  renderPanelScene(stageCtx, panel, { includeGuides: true });
+  renderPanelScene(stageCtx, panel, {
+    includeGuides: !state.playback,
+    playbackTimeMs: getPlaybackRenderTime(panel),
+  });
   renderTimeline();
   updateInputsFromPanel();
 }
@@ -561,10 +638,11 @@ function renderTimeline() {
     const meta = document.createElement("div");
     meta.className = "timeline-meta";
     const panelName = panel.title || `Panel ${index + 1}`;
+    const recordedActors = getRecordedActorCount(panel);
     const strong = document.createElement("strong");
     strong.textContent = panelName;
     const detail = document.createElement("span");
-    detail.textContent = `Panel ${index + 1} • ${panel.duration}s`;
+    detail.textContent = `Panel ${index + 1} • ${panel.duration}s • ${recordedActors} tracked`;
     const note = document.createElement("p");
     note.textContent = panel.note || "No shot note yet.";
     meta.append(strong, detail, note);
@@ -623,9 +701,219 @@ function clearDrawing() {
   renderStage();
 }
 
+function resolveMotionFigure() {
+  let figure = getSelectedFigure();
+  const panel = getActivePanel();
+  if (!figure && panel?.figures.length === 1) {
+    figure = panel.figures[0];
+    state.selectedFigureId = figure.id;
+  }
+  return figure;
+}
+
+function recordFigureKeyframe(panel, figure, timeMs) {
+  const clampedTime = clamp(timeMs, 0, getPanelDurationMs(panel));
+  if (!figure.motionTrack) {
+    figure.motionTrack = {
+      durationMs: getPanelDurationMs(panel),
+      keyframes: [],
+    };
+  }
+
+  figure.motionTrack.durationMs = getPanelDurationMs(panel);
+  const keyframes = figure.motionTrack.keyframes;
+  const last = keyframes[keyframes.length - 1];
+  const nextFrame = { t: clampedTime, x: figure.x, y: figure.y };
+
+  if (!last) {
+    keyframes.push(nextFrame);
+    return;
+  }
+
+  const moved = Math.abs(last.x - figure.x) > 1 || Math.abs(last.y - figure.y) > 1;
+  const advanced = clampedTime - last.t > 24;
+
+  if (moved || advanced) {
+    if (clampedTime < last.t) {
+      return;
+    }
+    keyframes.push(nextFrame);
+  } else {
+    last.x = figure.x;
+    last.y = figure.y;
+    last.t = clampedTime;
+  }
+}
+
+function stopPlayback({ keepStatus = false } = {}) {
+  if (!state.playback) {
+    return;
+  }
+
+  cancelAnimationFrame(state.playback.frameId);
+  state.playback = null;
+  renderStage();
+  if (!keepStatus) {
+    setMotionStatus("Playback stopped.");
+  }
+}
+
+function stopMotionCapture({ keepStatus = false } = {}) {
+  if (!state.recording) {
+    if (!keepStatus && !state.playback) {
+      setMotionStatus("No motion recording running.");
+    }
+    return;
+  }
+
+  const panel = state.panels.find((item) => item.id === state.recording.panelId);
+  const figure = panel?.figures.find((item) => item.id === state.recording.figureId);
+  if (panel && figure) {
+    const elapsed = performance.now() - state.recording.startedAt;
+    recordFigureKeyframe(panel, figure, elapsed);
+  }
+
+  state.recording = null;
+  renderStage();
+  if (!keepStatus) {
+    setMotionStatus("Recording stopped. Play the scene to preview the motion.");
+  }
+}
+
+function stopMotionAndPlayback() {
+  stopMotionCapture({ keepStatus: true });
+  stopPlayback({ keepStatus: true });
+  setMotionStatus("Motion tools stopped.");
+}
+
+function startMotionRecording() {
+  const panel = getActivePanel();
+  const figure = resolveMotionFigure();
+  if (!panel || !figure) {
+    setMotionStatus("Select a stick figure first, then hit Record Move.");
+    return;
+  }
+
+  stopPlayback({ keepStatus: true });
+  state.recording = {
+    panelId: panel.id,
+    figureId: figure.id,
+    startedAt: performance.now(),
+  };
+  figure.motionTrack = {
+    durationMs: getPanelDurationMs(panel),
+    keyframes: [{ t: 0, x: figure.x, y: figure.y }],
+  };
+  state.selectedFigureId = figure.id;
+  setTool("drag");
+  setMotionStatus("Recording movement. Drag the selected figure around the frame.");
+  renderStage();
+}
+
+function tickPlayback(now) {
+  const playback = state.playback;
+  if (!playback) return;
+
+  const elapsed = now - playback.startedAt;
+
+  if (playback.mode === "scene") {
+    const panel = state.panels[playback.startPanelIndex];
+    if (!panel) {
+      stopPlayback();
+      return;
+    }
+
+    const durationMs = getPanelDurationMs(panel);
+    if (elapsed >= durationMs) {
+      playback.currentPanelId = panel.id;
+      playback.currentTimeMs = durationMs;
+      renderStage();
+      stopPlayback({ keepStatus: true });
+      setMotionStatus("Scene playback finished.");
+      return;
+    }
+
+    playback.currentPanelId = panel.id;
+    playback.currentTimeMs = elapsed;
+    state.activePanelId = panel.id;
+    renderStage();
+    playback.frameId = requestAnimationFrame(tickPlayback);
+    return;
+  }
+
+  let remaining = elapsed;
+  let currentPanelIndex = playback.startPanelIndex;
+  while (currentPanelIndex < state.panels.length) {
+    const panel = state.panels[currentPanelIndex];
+    const durationMs = getPanelDurationMs(panel);
+    if (remaining <= durationMs) {
+      playback.currentPanelId = panel.id;
+      playback.currentTimeMs = remaining;
+      state.activePanelId = panel.id;
+      renderStage();
+      playback.frameId = requestAnimationFrame(tickPlayback);
+      return;
+    }
+    remaining -= durationMs;
+    currentPanelIndex += 1;
+  }
+
+  const lastPanel = state.panels[state.panels.length - 1];
+  if (lastPanel) {
+    playback.currentPanelId = lastPanel.id;
+    playback.currentTimeMs = getPanelDurationMs(lastPanel);
+    state.activePanelId = lastPanel.id;
+    renderStage();
+  }
+  stopPlayback({ keepStatus: true });
+  setMotionStatus("Storyboard playback finished.");
+}
+
+function startPlayback(mode) {
+  const panel = getActivePanel();
+  if (!panel) return;
+
+  stopMotionCapture({ keepStatus: true });
+  stopPlayback({ keepStatus: true });
+  state.playback = {
+    mode,
+    startPanelIndex: getActivePanelIndex(),
+    currentPanelId: panel.id,
+    currentTimeMs: 0,
+    startedAt: performance.now(),
+    frameId: 0,
+  };
+  setMotionStatus(
+    mode === "scene"
+      ? "Playing the current scene."
+      : "Playing the storyboard strip from the current scene onward.",
+  );
+  tickPlayback(state.playback.startedAt);
+}
+
+function moveActivePanel(direction) {
+  stopMotionAndPlayback();
+  const currentIndex = getActivePanelIndex();
+  const targetIndex = currentIndex + direction;
+  if (currentIndex < 0 || targetIndex < 0 || targetIndex >= state.panels.length) {
+    setMotionStatus("That scene is already at the edge of the timeline.");
+    return;
+  }
+
+  const [panel] = state.panels.splice(currentIndex, 1);
+  state.panels.splice(targetIndex, 0, panel);
+  state.activePanelId = panel.id;
+  renderStage();
+  setMotionStatus(`Moved this scene ${direction < 0 ? "earlier" : "later"} in the strip.`);
+}
+
 function handlePointerDown(event) {
   const panel = getActivePanel();
   if (!panel) return;
+
+  if (state.playback) {
+    stopPlayback({ keepStatus: true });
+  }
 
   event.preventDefault();
   stageCanvas.setPointerCapture(event.pointerId);
@@ -656,6 +944,13 @@ function handlePointerDown(event) {
       offsetY: point.y - figure.y,
     };
     stageCanvas.style.cursor = "grabbing";
+    if (
+      state.recording &&
+      state.recording.panelId === panel.id &&
+      state.recording.figureId === figure.id
+    ) {
+      recordFigureKeyframe(panel, figure, 0);
+    }
     renderStage();
     return;
   }
@@ -688,11 +983,29 @@ function handlePointerMove(event) {
     if (!figure) return;
     figure.x = clamp(point.x - state.dragInfo.offsetX, 40, CANVAS_WIDTH - 40);
     figure.y = clamp(point.y - state.dragInfo.offsetY, 120, CANVAS_HEIGHT - 8);
+    if (
+      state.recording &&
+      state.recording.panelId === panel.id &&
+      state.recording.figureId === figure.id
+    ) {
+      recordFigureKeyframe(panel, figure, performance.now() - state.recording.startedAt);
+    }
     renderStage();
   }
 }
 
 function handlePointerUp(event) {
+  const panel = getActivePanel();
+  if (panel && state.dragInfo && state.recording) {
+    const figure = panel.figures.find((item) => item.id === state.dragInfo.figureId);
+    if (
+      figure &&
+      state.recording.panelId === panel.id &&
+      state.recording.figureId === figure.id
+    ) {
+      recordFigureKeyframe(panel, figure, performance.now() - state.recording.startedAt);
+    }
+  }
   if (event?.pointerId != null && stageCanvas.hasPointerCapture(event.pointerId)) {
     stageCanvas.releasePointerCapture(event.pointerId);
   }
@@ -726,6 +1039,7 @@ function copySelectedFigure() {
     ...cloneData(figure),
     id: uid("figure"),
     x: clamp(figure.x + 52, 40, CANVAS_WIDTH - 40),
+    motionTrack: figure.motionTrack ? cloneData(figure.motionTrack) : null,
   };
   panel.figures.push(newFigure);
   state.selectedFigureId = newFigure.id;
@@ -900,6 +1214,12 @@ function wireControls() {
   document.getElementById("duplicatePanel").addEventListener("click", () => addPanel("duplicate"));
   document.getElementById("deletePanel").addEventListener("click", deleteActivePanel);
   document.getElementById("clearDrawing").addEventListener("click", clearDrawing);
+  document.getElementById("recordMotion").addEventListener("click", startMotionRecording);
+  document.getElementById("stopMotion").addEventListener("click", stopMotionAndPlayback);
+  document.getElementById("playScene").addEventListener("click", () => startPlayback("scene"));
+  document.getElementById("playStrip").addEventListener("click", () => startPlayback("strip"));
+  document.getElementById("movePanelLeft").addEventListener("click", () => moveActivePanel(-1));
+  document.getElementById("movePanelRight").addEventListener("click", () => moveActivePanel(1));
   document.getElementById("exportPanel").addEventListener("click", exportCurrentPanel);
   document.getElementById("exportBoard").addEventListener("click", exportBoard);
   document.getElementById("exportProject").addEventListener("click", exportProjectFile);
